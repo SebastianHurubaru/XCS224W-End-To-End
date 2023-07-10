@@ -85,20 +85,14 @@ def process(raw_dir_path, output_dir_path, device, raw_file_names):
 
     spotify_data = read_spotify_data(raw_dir_path, raw_file_names, device)
 
-    np.savez(osp.join(output_dir_path, 'artist.npz'), x=spotify_data["artist"]["x"])
-    np.savez(osp.join(output_dir_path, 'track.npz'), x=spotify_data["track"]["x"])
-    np.savez(osp.join(output_dir_path, 'album.npz'), x=spotify_data["album"]["x"])
-    np.savez(osp.join(output_dir_path, 'playlist.npz'), x=spotify_data["playlist"]["x"])
-
-    np.savez(osp.join(output_dir_path, 'track_by_artist.npz'), edge_index=spotify_data[('track', 'by', 'artist')]['edge_index'])
-    np.savez(osp.join(output_dir_path, 'track_on_album.npz'), edge_index=spotify_data[('track', 'on', 'album')]['edge_index'])
-    np.savez(osp.join(output_dir_path, 'album_by_artist.npz'), edge_index=spotify_data[('album', 'by', 'artist')]['edge_index'])
     np.savez(
-        osp.join(output_dir_path, 'playlist_contains_track.npz'), 
-        edge_index=spotify_data[('playlist', 'contains', 'track')]['edge_index'],
-        edge_label=spotify_data[('playlist', 'contains', 'track')]['edge_label'],
-        test_edge_index=spotify_data[('playlist', 'contains', 'track')]['test_edge_index']
-    )    
+        osp.join(output_dir_path, 'data.npz'), 
+        x=spotify_data["x"],
+        edge_index=spotify_data["edge_index"],
+        edge_label=spotify_data["edge_label"],
+        train_edge_index=spotify_data["train_edge_index"],
+        test_edge_index=spotify_data["test_edge_index"]
+    )
 
 if __name__ == "__main__":
 

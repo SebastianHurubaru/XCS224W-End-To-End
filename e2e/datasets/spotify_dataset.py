@@ -4,7 +4,7 @@ import shutil
 import numpy as np
 
 import torch
-from torch_geometric.data import InMemoryDataset, HeteroData, download_url, extract_zip
+from torch_geometric.data import InMemoryDataset, Data, download_url, extract_zip
 
 
 class SpotifyMPDataset(InMemoryDataset):
@@ -22,14 +22,7 @@ class SpotifyMPDataset(InMemoryDataset):
     def raw_file_names(self):
 
         return [
-            'artist.npz',
-            'track.npz',
-            'album.npz',
-            'playlist.npz',
-            'track_by_artist.npz',
-            'track_on_album.npz',
-            'album_by_artist.npz',
-            'playlist_contains_track.npz'
+            'data.npz'
         ]
 
     @property
@@ -47,29 +40,15 @@ class SpotifyMPDataset(InMemoryDataset):
 
     def process(self):
 
-        artist = np.load(osp.join(self.raw_dir, 'artist.npz'))
-        track = np.load(osp.join(self.raw_dir, 'track.npz'))
-        album = np.load(osp.join(self.raw_dir, 'album.npz'))
-        playlist = np.load(osp.join(self.raw_dir, 'playlist.npz'))
+        npz_data_file = np.load(osp.join(self.raw_dir, 'data.npz'))
 
-        track_by_artist = np.load(osp.join(self.raw_dir, 'track_by_artist.npz'))
-        track_on_album = np.load(osp.join(self.raw_dir, 'track_on_album.npz'))
-        album_by_artist = np.load(osp.join(self.raw_dir, 'album_by_artist.npz'))
-        playlist_contains_track = np.load(osp.join(self.raw_dir, 'playlist_contains_track.npz'))
-
-        data = HeteroData()
-
-        data['artist'].x = torch.from_numpy(artist['x'])
-        data['track'].x = torch.from_numpy(track['x'])
-        data['album'].x = torch.from_numpy(album['x'])
-        data['playlist'].x = torch.from_numpy(playlist['x'])
-
-        data['track', 'by', 'artist'].edge_index = torch.from_numpy(track_by_artist['edge_index']).to(torch.long)
-        data['track', 'on', 'album'].edge_index = torch.from_numpy(track_on_album['edge_index']).to(torch.long)
-        data['album', 'by', 'artist'].edge_index = torch.from_numpy(album_by_artist['edge_index']).to(torch.long)
-        data['playlist', 'contains', 'track'].edge_index = torch.from_numpy(playlist_contains_track['edge_index']).to(torch.long)
-        data['playlist', 'contains', 'track'].edge_label = torch.from_numpy(playlist_contains_track['edge_label']).to(torch.long)
-        data['playlist', 'contains', 'track'].test_edge_index = torch.from_numpy(playlist_contains_track['test_edge_index']).to(torch.long)
+        data = Data(
+            x=torch.from_numpy(npz_data_file["x"]),
+            edge_index=torch.from_numpy(npz_data_file["edge_index"]),
+            edge_label=torch.from_numpy(npz_data_file["edge_label"]),
+            train_edge_index=torch.from_numpy(npz_data_file["train_edge_index"]),
+            test_edge_index=torch.from_numpy(npz_data_file["test_edge_index"])
+        )
 
         if self.pre_filter is not None:
             data = self.pre_filter(data)
