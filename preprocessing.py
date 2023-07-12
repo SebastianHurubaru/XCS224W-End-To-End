@@ -7,7 +7,9 @@ import numpy as np
 import argparse
 from pathlib import Path
 
-import pandas as pd
+import gzip
+import json
+
 
 import torch
 
@@ -18,16 +20,20 @@ from e2e.io import read_spotify_data
 dataset_name = 'spotify_million_playlist_dataset'
 challenge_name = 'spotify_million_playlist_dataset_challenge'
 
-raw_file_names = []
-for i in range(0, 10**3, 10**3):
-    raw_file_names.append(f'mpd.slice.{i}-{i+999}.json')
+def write_dict_to_compressed_file(dict, filename):
+
+    json_str = json.dumps(dict) + "\n"
+    json_bytes = json_str.encode('utf-8')
+
+    with gzip.open(filename, 'w') as fout:
+        fout.write(json_bytes)  
 
 def get_raw_file_names():
 
     raw_file_names = []
     
     # Add the milion playlist dataset split files
-    for i in range(0, 10**6, 10**3):
+    for i in range(0, 10**3, 10**3):
         raw_file_names.append(f'mpd.slice.{i}-{i+999}.json')
     
     # Add the million playlist challenge file
@@ -87,12 +93,25 @@ def process(raw_dir_path, output_dir_path, device, raw_file_names):
 
     np.savez(
         osp.join(output_dir_path, 'data.npz'), 
-        x=spotify_data["x"],
-        edge_index=spotify_data["edge_index"],
-        edge_label=spotify_data["edge_label"],
+        x_playlist_train=spotify_data["x_playlist_train"],
+        x_playlist_test=spotify_data["x_playlist_test"],
+        x_track=spotify_data["x_track"],
         train_edge_index=spotify_data["train_edge_index"],
-        test_edge_index=spotify_data["test_edge_index"]
+        train_edge_label=spotify_data["train_edge_label"],
+        test_edge_index=spotify_data["test_edge_index"],
+        test_edge_label=spotify_data["test_edge_label"],
     )
+
+    write_dict_to_compressed_file(
+        spotify_data["playlist_id_map"],
+        osp.join(output_dir_path, 'playlist_id_map.json.gz'), 
+    )
+
+    write_dict_to_compressed_file(
+        spotify_data["track_uri_map"],
+        osp.join(output_dir_path, 'track_uri_map.json.gz'), 
+    )
+
 
 if __name__ == "__main__":
 
