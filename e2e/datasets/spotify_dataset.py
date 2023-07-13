@@ -21,6 +21,9 @@ class SpotifyMPDataset(InMemoryDataset):
 
         super().__init__(root, transform, pre_transform, pre_filter)
         self.data, self.slices = torch.load(self.processed_paths[0])
+
+        self.playlist_id_map = self.read_compressed_json_file_to_dict(self.processed_paths[1])
+        self.track_uri_map = self.read_compressed_json_file_to_dict(self.processed_paths[2])
     
     @property
     def raw_file_names(self):
@@ -57,7 +60,6 @@ class SpotifyMPDataset(InMemoryDataset):
             }
         ).to_homogeneous()
 
-        
         """
         Node type new mapping after converting to a homogeneuous graph: {
             "playlist": 1,
@@ -67,6 +69,10 @@ class SpotifyMPDataset(InMemoryDataset):
 
         train_data["track_node_type"] = 0
         train_data["playlist_node_type"] = 1
+        train_data["test_nodes_index"] = torch.empty((0), dtype=torch.long)
+
+        train_num_track_nodes = len(train_data["node_type"]) - train_data["node_type"].sum().item()
+        train_num_playlist_nodes = train_data["node_type"].sum().item()
 
         test_data = HeteroData(
             track={ 'x': torch.from_numpy(npz_data_file["x_track"]) },
@@ -77,9 +83,17 @@ class SpotifyMPDataset(InMemoryDataset):
             }
         ).to_homogeneous()
 
+        test_num_track_nodes = len(test_data["node_type"]) - test_data["node_type"].sum().item()
+
         test_data["track_node_type"] = 0
         test_data["playlist_node_type"] = 1
-        test_data["test_nodes_index"] = torch.arange(train_data.num_nodes, test_data.num_nodes)
+        test_data["test_nodes_index"] = torch.arange(test_num_track_nodes + train_num_playlist_nodes, test_data.num_nodes)
+
+        assert len(test_data["test_nodes_index"]) == 10000
+
+        playlist_id_map = self.read_compressed_json_file_to_dict(osp.join(self.raw_dir, 'playlist_id_map.json.gz'))
+
+        playlist_id_map = {int(k)+test_num_track_nodes: v for k, v in playlist_id_map.items()}
 
         data_list = [train_data, test_data]
 
@@ -96,7 +110,7 @@ class SpotifyMPDataset(InMemoryDataset):
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
 
-        shutil.copyfile(osp.join(self.raw_dir, 'playlist_id_map.json.gz'), self.processed_paths[1])
+        self.write_dict_to_compressed_file(playlist_id_map, self.processed_paths[1])
         shutil.copyfile(osp.join(self.raw_dir, 'track_uri_map.json.gz'), self.processed_paths[2])
 
     def read_compressed_json_file_to_dict(self, file):
@@ -104,4 +118,13 @@ class SpotifyMPDataset(InMemoryDataset):
             json_bytes = fin.read()
 
         json_str = json_bytes.decode('utf-8')
-        return json.loads(json_str, type=OrderedDict)
+        return json.loads(json_str)
+    
+
+    def write_dict_to_compressed_file(self, dict, filename):
+
+        json_str = json.dumps(dict) + "\n"
+        json_bytes = json_str.encode('utf-8')
+
+        with gzip.open(filename, 'w') as fout:
+            fout.write(json_bytes)  

@@ -1,14 +1,17 @@
 from torch.utils.data import Dataset
 
 class EdgeDataset(Dataset):
-    def __init__(self, edge_index, edge_label):
-        self.edge_index = edge_index
-        self.edge_label = edge_label
+    def __init__(self, src_node_index, pos_dst_node_index=None, neg_dst_node_index=None):
+        self.src_node_index = src_node_index
+        self.pos_dst_node_index = pos_dst_node_index
+        self.neg_dst_node_index = neg_dst_node_index
 
     def __len__(self):
-        return self.edge_index.shape[-1]
+        return self.src_node_index.shape[-1]
 
     def __getitem__(self, idx):
-        item = self.edge_index[:, idx]
-        label = self.edge_label[idx]
-        return item, label
+        return (
+            self.src_node_index[idx], 
+            -1 if self.pos_dst_node_index == None else self.pos_dst_node_index[idx], 
+            -1 if self.neg_dst_node_index == None else self.neg_dst_node_index[idx]
+        )

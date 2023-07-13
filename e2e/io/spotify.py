@@ -136,8 +136,8 @@ def read_spotify_data(folder, files, device):
         'train_edge_label': train_edge_label,
         'test_edge_index': test_edge_index,
         'test_edge_label': test_edge_label,
-        'playlist_id_map': playlist_node_ids,
-        'track_uri_map': tracks_node_ids
+        'playlist_id_map': {v: k for k, v in playlist_node_ids.items()},
+        'track_uri_map': {v: k for k, v in tracks_node_ids.items()}
     }
     
     return data
