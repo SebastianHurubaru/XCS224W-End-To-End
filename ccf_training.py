@@ -21,8 +21,7 @@ from e2e.models import NeuralGraphCollaborativeFiltering, ConventionalCollaborat
 
 spotify_dataset = SpotifyMPDataset(
     root='./spotify_mpd', 
-    url=f"file://{osp.join(Path('.').resolve(), 'spotify_preprocessed_dataset')}",
-    pre_transform=ToUndirected(reduce="mean")
+    url=f"file://{osp.join(Path('.').resolve(), 'spotify_preprocessed_dataset')}"
 )
 
 train_data = spotify_dataset[0]
@@ -31,7 +30,6 @@ test_data = spotify_dataset[1]
 train_data.validate(raise_on_error=True)
 
 print(f'Undirected = {train_data.is_undirected()}')
-# print(f'Bipartite = {data[("playlist", "contains", "track")].is_bipartite()}')
               
 emb = nn.Embedding(num_embeddings=test_data.num_nodes, embedding_dim=train_data.num_node_features)
 emb.weight.data = test_data["x"]
