@@ -13,20 +13,19 @@ from torch_geometric.utils import coalesce, one_hot, remove_self_loops
 from tqdm import tqdm
 
 
-def read_spotify_data(folder, files, device):
+def read_spotify_data(folder, files, device, dim_reduction=False, node_emb_dim=384):
 
     model = SentenceTransformer('all-MiniLM-L6-v2').to(device=device)
     model.eval()
 
     print(f'Running SentenceTransformer model on device: {device}')
 
-    train_edge_index = np.empty((2, 0), dtype=np.long)
-    train_edge_label = np.empty(0, dtype=np.long)
+    train_edge_index = np.empty((2, 0), dtype=int)
+    train_edge_label = np.empty(0, dtype=int)
 
-    test_edge_index = np.empty((2, 0), dtype=np.long)
-    test_edge_label = np.empty(0, dtype=np.long)
+    test_edge_index = np.empty((2, 0), dtype=int)
+    test_edge_label = np.empty(0, dtype=int)
 
-    node_emb_dim = 32
     pca = PCA(n_components=node_emb_dim)
     
     x_playlist_train = np.empty((0, node_emb_dim), dtype=np.float32)
@@ -83,12 +82,13 @@ def read_spotify_data(folder, files, device):
                     current_edge_index.append([playlist_node_id, track_node_id])
                     current_edge_label.append(track_item.get("pos"))
 
-            # current_node_emb = pca.fit_transform(
-            #     model.encode(
-            #         current_playlist_features+current_tracks_features,
-            #         show_progress_bar=True
-            #     )
+            # current_node_emb = model.encode(
+            #     current_playlist_features+current_tracks_features,
+            #     show_progress_bar=True
             # )
+
+            # if dim_reduction == True:
+            #     current_node_emb = pca.fit_transform(current_node_emb)
             
             current_node_emb = torch.randn(len(current_playlist_features)+len(current_tracks_features), node_emb_dim)
 

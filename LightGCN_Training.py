@@ -71,7 +71,7 @@ args = {
     'device': device,
     'num_layers': 2,
     'hidden_dim': train_data.num_node_features,
-    'batch_size': 2048,
+    'batch_size': 2,
     'dropout': 0.5,
     'lr': 0.001,
     'epochs': 10,
@@ -177,7 +177,6 @@ def test():
 
 
 # In[ ]:
-
 
 def train():
     
