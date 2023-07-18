@@ -63,6 +63,7 @@ if torch.cuda.is_available():
 elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
     device = torch.device("mps")
 
+print(f'Runing on device: {device}')
 
 # In[ ]:
 
@@ -71,7 +72,7 @@ args = {
     'device': device,
     'num_layers': 2,
     'hidden_dim': train_data.num_node_features,
-    'batch_size': 2,
+    'batch_size': 2**20,
     'dropout': 0.5,
     'lr': 0.001,
     'epochs': 10,
@@ -200,14 +201,16 @@ def train():
         
         for step, (batch_playlist_index, batch_pos_track_index, batch_neg_track_index) in enumerate(data_loader):
 
+            batch_playlist_index, batch_pos_track_index, batch_neg_track_index = batch_playlist_index.to(device=args["device"]), batch_pos_track_index.to(device=args["device"]), batch_neg_track_index.to(device=args["device"])
+
             batch_pos_edge_index = torch.stack([batch_playlist_index, batch_pos_track_index], dim=0)
             batch_neg_edge_index = torch.stack([batch_playlist_index, batch_neg_track_index], dim=0)
 
-            batch_edge_index = torch.concatenate([batch_pos_edge_index, batch_neg_edge_index], dim=-1).to(device=args["device"])
+            batch_edge_index = torch.concatenate([batch_pos_edge_index, batch_neg_edge_index], dim=-1)
             
             optimizer.zero_grad()
 
-            out = model(edge_index=train_edge_index, edge_label_index=batch_edge_index).cpu()
+            out = model(edge_index=train_edge_index, edge_label_index=batch_edge_index)
 
             pos_edge_rank, neg_edge_rank = out.chunk(2)
             
@@ -216,7 +219,7 @@ def train():
             loss.backward()
             optimizer.step()
 
-            tqdm_epoch_bar.set_description(f"Training: (Epoch - {epoch}), (BPRLoss - {loss.item()})")
+            tqdm_epoch_bar.set_description(f"Training: (Epoch - {epoch}), (Step - {step}), (BPRLoss - {loss.item()})")
             tqdm_epoch_bar.refresh()
 
     
