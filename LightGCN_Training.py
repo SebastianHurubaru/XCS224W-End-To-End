@@ -166,12 +166,16 @@ def test():
         
         for step, (batch_playlist_index, _, _) in enumerate(data_loader):
 
+            batch_playlist_index = batch_playlist_index.to(args["device"])
+
             out = model.recommend(edge_index=test_edge_index, src_index=batch_playlist_index, dst_index=track_node_index, k=args["k"]).cpu()
 
             recommended_track_ids = torch.concatenate([recommended_track_ids, out], dim=0)
 
             tqdm_epoch_bar.set_description(f"Evaluating: (Step - {step})")
             tqdm_epoch_bar.refresh()
+
+    test_edge_index = test_edge_index.cpu()
 
     return recommended_track_ids
 
@@ -182,8 +186,6 @@ def train():
     
     model.to(device=args["device"])
 
-    train_edge_index = train_data.edge_index.to(device=args["device"])
-
     test_edge_index = test_data.edge_index[:, train_data.num_edges:]
 
     tqdm_epoch_bar = trange(args["epochs"], desc='Training: ', leave=True)
@@ -191,6 +193,8 @@ def train():
     for epoch in tqdm_epoch_bar:
 
         model.train()
+
+        train_edge_index = train_data.edge_index.to(device=args["device"])
 
         playlist_index, pos_track_index, neg_track_index = structured_negative_sampling(train_data.edge_index, contains_neg_self_loops=False)
 
@@ -207,7 +211,7 @@ def train():
             
             optimizer.zero_grad()
 
-            out = model(edge_index=train_edge_index, edge_label_index=batch_edge_index).cpu()
+            out = model(edge_index=train_edge_index, edge_label_index=batch_edge_index)
 
             pos_edge_rank, neg_edge_rank = out.chunk(2)
             
@@ -219,7 +223,9 @@ def train():
             tqdm_epoch_bar.set_description(f"Training: (Epoch - {epoch}), (BPRLoss - {loss.item()})")
             tqdm_epoch_bar.refresh()
 
-    
+
+        train_edge_index = train_edge_index.cpu()
+
         # Get the recommended track ids for the test set
         recommended_track_ids = test()
         
