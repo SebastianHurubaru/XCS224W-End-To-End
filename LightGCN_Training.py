@@ -72,7 +72,9 @@ args = {
     'device': device,
     'num_layers': 2,
     'hidden_dim': train_data.num_node_features,
-    'batch_size': 2**20,
+    'train_chunk_size': 2,
+    'test_chunk_size': 4,
+    'num_workers': 12,
     'dropout': 0.5,
     'lr': 0.001,
     'epochs': 10,
@@ -145,7 +147,7 @@ def generate_output_file(recommended_track_ids, edge_index, filename):
 # In[ ]:
 
 
-def test():
+def test(model):
 
     test_edge_index = test_data.edge_index.to(device=args["device"])
 
@@ -154,44 +156,44 @@ def test():
 
     recommended_track_ids = torch.empty((0, args["k"]), dtype=torch.long)
 
-    tqdm_epoch_bar = trange(args["epochs"], desc='Evaluating: ', leave=True)
-    for _ in tqdm_epoch_bar:
+    model.eval()
 
-        model.eval()
+    playlist_index = test_data["test_nodes_index"]
 
-        playlist_index = test_data["test_nodes_index"]
+    # if args["test_batch_size"] == -1:
+    #     data_loader = zip([playlist_index], [None], [None])
+    # else:
+    #     edge_index_data = EdgeDataset(playlist_index)
+    #     data_loader = DataLoader(edge_index_data, batch_size=args["test_batch_size"], shuffle=False, pin_memory=True, num_workers=args["num_workers"])
 
-        edge_index_data = EdgeDataset(playlist_index)
+    data_loader = playlist_index.chunk(args["test_chunk_size"])
 
-        data_loader = DataLoader(edge_index_data, batch_size=args["batch_size"], shuffle=False, pin_memory=True, num_workers=0)
-        
-        for step, (batch_playlist_index, _, _) in enumerate(data_loader):
+    for step, batch_playlist_index in enumerate(data_loader):
 
-            batch_playlist_index = batch_playlist_index.to(args["device"])
+        batch_playlist_index = batch_playlist_index.to(args["device"])
 
-            out = model.recommend(edge_index=test_edge_index, src_index=batch_playlist_index, dst_index=track_node_index, k=args["k"]).cpu()
+        out = model.recommend(edge_index=test_edge_index, src_index=batch_playlist_index, dst_index=track_node_index, k=args["k"]).cpu()
 
-            recommended_track_ids = torch.concatenate([recommended_track_ids, out], dim=0)
-
-            tqdm_epoch_bar.set_description(f"Evaluating: (Step - {step})")
-            tqdm_epoch_bar.refresh()
+        recommended_track_ids = torch.concatenate([recommended_track_ids, out], dim=0)
 
     test_edge_index = test_edge_index.cpu()
+
+    torch.cuda.empty_cache()
 
     return recommended_track_ids
 
 
 # In[ ]:
 
-def train():
+def train(model):
     
-    model.to(device=args["device"])
-
     test_edge_index = test_data.edge_index[:, train_data.num_edges:]
 
     tqdm_epoch_bar = trange(args["epochs"], desc='Training: ', leave=True)
 
     for epoch in tqdm_epoch_bar:
+
+        model = model.to(device=args["device"])
 
         model.train()
 
@@ -199,18 +201,24 @@ def train():
 
         playlist_index, pos_track_index, neg_track_index = structured_negative_sampling(train_data.edge_index, contains_neg_self_loops=False)
 
-        edge_index_data = EdgeDataset(playlist_index, pos_track_index, neg_track_index)
+        # Shuffle the tensors
+        shuffle_indices = torch.randperm(playlist_index.size()[0])
+        playlist_index, pos_track_index, neg_track_index = playlist_index[shuffle_indices], pos_track_index[shuffle_indices], neg_track_index[shuffle_indices]
 
-        data_loader = DataLoader(edge_index_data, batch_size=args["batch_size"], shuffle=True, pin_memory=True, num_workers=0)
+        # if args["batch_size"] == -1:
+        #     data_loader = zip(playlist_index.chunk(2), pos_track_index.chunk(2), neg_track_index.chunk(2))
+        # else:
+        #     edge_index_data = EdgeDataset(playlist_index, pos_track_index, neg_track_index)
+        #     data_loader = DataLoader(edge_index_data, batch_size=args["batch_size"], shuffle=True, pin_memory=True, num_workers=args["num_workers"])
+
+        data_loader = zip(playlist_index.chunk(args["train_chunk_size"]), pos_track_index.chunk(args["train_chunk_size"]), neg_track_index.chunk(args["train_chunk_size"]))
         
         for step, (batch_playlist_index, batch_pos_track_index, batch_neg_track_index) in enumerate(data_loader):
-
-            batch_playlist_index, batch_pos_track_index, batch_neg_track_index = batch_playlist_index.to(device=args["device"]), batch_pos_track_index.to(device=args["device"]), batch_neg_track_index.to(device=args["device"])
 
             batch_pos_edge_index = torch.stack([batch_playlist_index, batch_pos_track_index], dim=0)
             batch_neg_edge_index = torch.stack([batch_playlist_index, batch_neg_track_index], dim=0)
 
-            batch_edge_index = torch.concatenate([batch_pos_edge_index, batch_neg_edge_index], dim=-1)
+            batch_edge_index = torch.concatenate([batch_pos_edge_index, batch_neg_edge_index], dim=-1).to(device=args["device"])
             
             optimizer.zero_grad()
 
@@ -223,18 +231,20 @@ def train():
             loss.backward()
             optimizer.step()
 
-            tqdm_epoch_bar.set_description(f"Training: (Epoch - {epoch}), (Step - {step}), (BPRLoss - {loss.item()})")
+            tqdm_epoch_bar.set_description(f"Training: (Epoch - {epoch}), (Step - {step}), (BPRLoss - {loss.cpu().item()})")
             tqdm_epoch_bar.refresh()
 
 
         train_edge_index = train_edge_index.cpu()
 
+        torch.cuda.empty_cache()
+
         # Get the recommended track ids for the test set
-        recommended_track_ids = test()
+        recommended_track_ids = test(model)
         
         generate_output_file(recommended_track_ids, test_edge_index, filename=osp.join('output_files', f'epoch_{epoch}_submission.csv.gz'))
 
-train()
+train(model)
 
 
 # In[ ]:
