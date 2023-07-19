@@ -13,12 +13,12 @@ from torch_geometric.utils import coalesce, one_hot, remove_self_loops
 from tqdm import tqdm
 
 
-def read_spotify_data(folder, files, device, dim_reduction=False, node_emb_dim=384):
+def read_spotify_data(folder, files, args):
 
-    model = SentenceTransformer('all-MiniLM-L6-v2').to(device=device)
+    model = SentenceTransformer('all-MiniLM-L6-v2').to(device=args.device)
     model.eval()
 
-    print(f'Running SentenceTransformer model on device: {device}')
+    print(f'Running SentenceTransformer model on device: {args.device}')
 
     train_edge_index = np.empty((2, 0), dtype=int)
     train_edge_label = np.empty(0, dtype=int)
@@ -26,12 +26,12 @@ def read_spotify_data(folder, files, device, dim_reduction=False, node_emb_dim=3
     test_edge_index = np.empty((2, 0), dtype=int)
     test_edge_label = np.empty(0, dtype=int)
 
-    pca = PCA(n_components=node_emb_dim)
+    pca = PCA(n_components=args.node_feature_size)
     
-    x_playlist_train = np.empty((0, node_emb_dim), dtype=np.float32)
-    x_playlist_test = np.empty((0, node_emb_dim), dtype=np.float32)
+    x_playlist_train = np.empty((0, args.node_feature_size), dtype=np.float32)
+    x_playlist_test = np.empty((0, args.node_feature_size), dtype=np.float32)
 
-    x_track = np.empty((0, node_emb_dim), dtype=np.float32)
+    x_track = np.empty((0, args.node_feature_size), dtype=np.float32)
 
     playlist_node_ids = OrderedDict()
     tracks_node_ids = OrderedDict()
@@ -82,15 +82,18 @@ def read_spotify_data(folder, files, device, dim_reduction=False, node_emb_dim=3
                     current_edge_index.append([playlist_node_id, track_node_id])
                     current_edge_label.append(track_item.get("pos"))
 
-            # current_node_emb = model.encode(
-            #     current_playlist_features+current_tracks_features,
-            #     show_progress_bar=True
-            # )
+            current_node_emb = model.encode(
+                current_playlist_features+current_tracks_features,
+                show_progress_bar=True,
+                batch_size=args.batch_size
+            )
 
-            # if dim_reduction == True:
-            #     current_node_emb = pca.fit_transform(current_node_emb)
+            torch.cuda.empty_cache()
+
+            if args.dimension_reduction == True:
+                current_node_emb = pca.fit_transform(current_node_emb)
             
-            current_node_emb = torch.randn(len(current_playlist_features)+len(current_tracks_features), node_emb_dim)
+            # current_node_emb = torch.randn(len(current_playlist_features)+len(current_tracks_features), args.node_feature_size)
 
             slice_index = 0
             

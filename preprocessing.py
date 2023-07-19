@@ -50,6 +50,8 @@ def main(args):
         elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
             device = torch.device("mps")
 
+    args.device = device
+
     output_dataset_path = args.output_dataset_path if args.output_dataset_path.is_absolute() else osp.join(Path('.').resolve(), args.output_dataset_path)
     orig_dataset_path = args.orig_dataset_path if args.orig_dataset_path.is_absolute() else osp.join(Path('.').resolve(), args.orig_dataset_path)
 
@@ -58,7 +60,7 @@ def main(args):
     raw_file_names = get_raw_file_names()
 
     download(raw_dir_path, orig_dataset_path, output_dataset_path, raw_file_names)
-    process(raw_dir_path, output_dataset_path, device, raw_file_names, args.dimension_reduction, args.node_feature_size)
+    process(raw_dir_path, output_dataset_path, raw_file_names, args)
 
 
 def download(raw_dir_path, orig_dataset_path, output_dataset_path, raw_file_names):
@@ -87,9 +89,9 @@ def download(raw_dir_path, orig_dataset_path, output_dataset_path, raw_file_name
     shutil.rmtree(dataset_folder)
     shutil.rmtree(challenge_folder)
 
-def process(raw_dir_path, output_dir_path, device, raw_file_names, dim_reduction, dim_size):
+def process(raw_dir_path, output_dir_path, raw_file_names, args):
 
-    spotify_data = read_spotify_data(raw_dir_path, raw_file_names, device, dim_reduction, dim_size)
+    spotify_data = read_spotify_data(raw_dir_path, raw_file_names, args)
 
     np.savez(
         osp.join(output_dir_path, 'data.npz'), 
@@ -123,15 +125,18 @@ if __name__ == "__main__":
     parser.add_argument('--output_dataset_path', type=Path, default='./spotify_preprocessed_dataset', required=False,
                         help='Path to the output pre-processed Spotify MPD')
     
-    parser.add_argument('--node_feature_size', type=int, default=32, required=False,
-                        help='Dimension of the produced node features ')
+    parser.add_argument('--node_feature_size', type=int, default=384, required=False,
+                        help='Dimension of the produced node features')
     
-    parser.add_argument('--dimension_reduction', type=bool, default=True, required=False,
+    parser.add_argument('--batch_size', type=int, default=8192, required=False,
+                        help='Batch size for the Sentence Transformer')
+    
+    parser.add_argument('--dimension_reduction', type=bool, default=False, required=False,
                         help='Reduce node feature dimensionality to `node_feature_size`')
     
-    parser.add_argument('--device', type=str, default='cpu', choices=['cpu', 'gpu'], required=False,
+    parser.add_argument('--device', type=str, default='gpu', choices=['cpu', 'gpu'], required=False,
                         help='Device to be used')
     
-    args = parser.parse_args()us
+    args = parser.parse_args()
 
     main(args)
