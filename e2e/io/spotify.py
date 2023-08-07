@@ -17,16 +17,18 @@ r"""Read and process the spotify mpd.
 Args:
     input_folder : Path to the folder where the spotify mpd files are located.
     input_files: List of files to be processed from the `input_folder`.
-    device: Device to be used by the SentenceTransformer.
-    dim_reduction: Whether to reduce the feature dimensions to `node_emb_dim` using PCA.
-    node_emb_dim: Use PCA to reduce the feature dimensions to the specified value.
+    args: dictionary with the following required keys:
+        device: Device to be used by the SentenceTransformer.
+        dimension_reduction: Whether to reduce the feature dimensions to `node_emb_dim` using PCA.
+        node_emb_dim: Use PCA to reduce the feature dimensions to the specified value.
 
 Returns: 
     Dictionary containing parsed spotify mpd data
 
 """
-def read_spotify_data(input_folder, input_files, device, dim_reduction=False, node_emb_dim=384):
+def read_spotify_data(input_folder, input_files, args):
 
+    # LLM to generate node features from text
     model = SentenceTransformer('all-MiniLM-L6-v2').to(device=args.device)
     model.eval()
 
@@ -38,6 +40,7 @@ def read_spotify_data(input_folder, input_files, device, dim_reduction=False, no
     test_edge_index = np.empty((2, 0), dtype=int)
     test_edge_label = np.empty(0, dtype=int)
 
+    # PCA to reduce features dimensionality
     pca = PCA(n_components=args.node_feature_size)
     
     x_playlist_train = np.empty((0, args.node_feature_size), dtype=np.float32)
@@ -48,6 +51,8 @@ def read_spotify_data(input_folder, input_files, device, dim_reduction=False, no
     playlist_node_ids = OrderedDict()
     tracks_node_ids = OrderedDict()
 
+    # Nested function to generate data required by a Collaborative Filtering model
+    # where users are the playlists and the items are the tracks.
     def read_and_process_files(files, x_playlist, edge_index, edge_label):
 
         nonlocal playlist_node_ids
@@ -99,7 +104,7 @@ def read_spotify_data(input_folder, input_files, device, dim_reduction=False, no
                 show_progress_bar=True
             )
 
-            if dim_reduction == True:
+            if args.dimension_reduction == True:
                 current_node_emb = pca.fit_transform(current_node_emb)
 
             slice_index = 0
