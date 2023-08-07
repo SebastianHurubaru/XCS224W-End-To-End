@@ -9,7 +9,12 @@ import torch
 from torch_geometric.data import (HeteroData, InMemoryDataset, download_url,
                                   extract_zip)
 
+r""" Spotify Million Playlist Dataset 
 
+(https://www.aicrowd.com/challenges/spotify-million-playlist-dataset-challenge)
+    
+
+"""
 class SpotifyMPDataset(InMemoryDataset):
 
     name = 'spotify'

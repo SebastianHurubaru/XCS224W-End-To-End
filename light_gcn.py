@@ -70,7 +70,7 @@ print(args)
 model = LightGCN(
     num_nodes=test_data.num_nodes,
     embedding_dim=train_data.num_node_features,
-    num_layers=3
+    num_layers=args["num_layers"]
 )
 
 # In[ ]:
