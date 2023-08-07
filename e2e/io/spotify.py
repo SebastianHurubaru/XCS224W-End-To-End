@@ -27,10 +27,10 @@ Returns:
 """
 def read_spotify_data(input_folder, input_files, device, dim_reduction=False, node_emb_dim=384):
 
-    model = SentenceTransformer('all-MiniLM-L6-v2').to(device=device)
+    model = SentenceTransformer('all-MiniLM-L6-v2').to(device=args.device)
     model.eval()
 
-    print(f'Running SentenceTransformer model on device: {device}')
+    print(f'Running SentenceTransformer model on device: {args.device}')
 
     train_edge_index = np.empty((2, 0), dtype=int)
     train_edge_label = np.empty(0, dtype=int)
@@ -38,12 +38,12 @@ def read_spotify_data(input_folder, input_files, device, dim_reduction=False, no
     test_edge_index = np.empty((2, 0), dtype=int)
     test_edge_label = np.empty(0, dtype=int)
 
-    pca = PCA(n_components=node_emb_dim)
+    pca = PCA(n_components=args.node_feature_size)
     
-    x_playlist_train = np.empty((0, node_emb_dim), dtype=np.float32)
-    x_playlist_test = np.empty((0, node_emb_dim), dtype=np.float32)
+    x_playlist_train = np.empty((0, args.node_feature_size), dtype=np.float32)
+    x_playlist_test = np.empty((0, args.node_feature_size), dtype=np.float32)
 
-    x_track = np.empty((0, node_emb_dim), dtype=np.float32)
+    x_track = np.empty((0, args.node_feature_size), dtype=np.float32)
 
     playlist_node_ids = OrderedDict()
     tracks_node_ids = OrderedDict()
