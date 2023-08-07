@@ -1,19 +1,14 @@
+import argparse
+import gzip
+import json
 import os
 import os.path as osp
 import shutil
-
-import numpy as np
-
-import argparse
 from pathlib import Path
 
-import gzip
-import json
-
-
+import numpy as np
 import torch
-
-from torch_geometric.data import InMemoryDataset, download_url, extract_zip
+from torch_geometric.data import download_url, extract_zip
 
 from e2e.io import read_spotify_data
 
@@ -42,6 +37,8 @@ def get_raw_file_names():
     return raw_file_names
 
 def main(args):
+
+    print(args)
 
     device = torch.device("cpu")
     if (args.device == 'gpu'):
@@ -132,6 +129,6 @@ if __name__ == "__main__":
     parser.add_argument('--device', type=str, default='cpu', choices=['cpu', 'gpu'], required=False,
                         help='Device to be used')
     
-    args = parser.parse_args()us
+    args = parser.parse_args()
 
     main(args)

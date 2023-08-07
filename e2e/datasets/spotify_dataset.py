@@ -1,15 +1,14 @@
+import gzip
+import json
 import os
 import os.path as osp
 import shutil
+
 import numpy as np
-
-import gzip
-import json
-
-from collections import OrderedDict
-
 import torch
-from torch_geometric.data import InMemoryDataset, HeteroData, download_url, extract_zip
+from torch_geometric.data import (HeteroData, InMemoryDataset, download_url,
+                                  extract_zip)
+
 
 class SpotifyMPDataset(InMemoryDataset):
 
@@ -112,6 +111,7 @@ class SpotifyMPDataset(InMemoryDataset):
 
         self.write_dict_to_compressed_file(playlist_id_map, self.processed_paths[1])
         shutil.copyfile(osp.join(self.raw_dir, 'track_uri_map.json.gz'), self.processed_paths[2])
+
 
     def read_compressed_json_file_to_dict(self, file):
         with gzip.open(file, 'r') as fin:

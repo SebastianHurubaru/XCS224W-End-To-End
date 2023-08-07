@@ -12,8 +12,20 @@ from torch_geometric.io import read_txt_array
 from torch_geometric.utils import coalesce, one_hot, remove_self_loops
 from tqdm import tqdm
 
+r"""Read and process the spotify mpd.
 
-def read_spotify_data(folder, files, device, dim_reduction=False, node_emb_dim=384):
+Args:
+    input_folder : Path to the folder where the spotify mpd files are located.
+    input_files: List of files to be processed from the `input_folder`.
+    device: Device to be used by the SentenceTransformer.
+    dim_reduction: Whether to reduce the feature dimensions to `node_emb_dim` using PCA.
+    node_emb_dim: Use PCA to reduce the feature dimensions to the specified value.
+
+Returns: 
+    Dictionary containing parsed spotify mpd data
+
+"""
+def read_spotify_data(input_folder, input_files, device, dim_reduction=False, node_emb_dim=384):
 
     model = SentenceTransformer('all-MiniLM-L6-v2').to(device=device)
     model.eval()
@@ -45,7 +57,7 @@ def read_spotify_data(folder, files, device, dim_reduction=False, node_emb_dim=3
 
         for filename in tqdm(files, position=0, desc="File processing"):
             
-            fullpath = os.sep.join((folder, filename))
+            fullpath = os.sep.join((input_folder, filename))
             f = open(fullpath)
             js = f.read()
             f.close()
@@ -82,15 +94,13 @@ def read_spotify_data(folder, files, device, dim_reduction=False, node_emb_dim=3
                     current_edge_index.append([playlist_node_id, track_node_id])
                     current_edge_label.append(track_item.get("pos"))
 
-            # current_node_emb = model.encode(
-            #     current_playlist_features+current_tracks_features,
-            #     show_progress_bar=True
-            # )
+            current_node_emb = model.encode(
+                current_playlist_features+current_tracks_features,
+                show_progress_bar=True
+            )
 
-            # if dim_reduction == True:
-            #     current_node_emb = pca.fit_transform(current_node_emb)
-            
-            current_node_emb = torch.randn(len(current_playlist_features)+len(current_tracks_features), node_emb_dim)
+            if dim_reduction == True:
+                current_node_emb = pca.fit_transform(current_node_emb)
 
             slice_index = 0
             
@@ -112,10 +122,10 @@ def read_spotify_data(folder, files, device, dim_reduction=False, node_emb_dim=3
         return x_playlist, edge_index, edge_label
 
     # Create the graph data out of the Spotify MPD
-    x_playlist_train, train_edge_index, train_edge_label = read_and_process_files(files[:-1], x_playlist=x_playlist_train, edge_index=train_edge_index, edge_label=train_edge_label)
+    x_playlist_train, train_edge_index, train_edge_label = read_and_process_files(input_files[:-1], x_playlist=x_playlist_train, edge_index=train_edge_index, edge_label=train_edge_label)
 
     # Append the test graph data from the spotify challenge
-    x_playlist_test, test_edge_index, test_edge_label = read_and_process_files([files[-1]], x_playlist=x_playlist_test, edge_index=test_edge_index, edge_label=test_edge_label)
+    x_playlist_test, test_edge_index, test_edge_label = read_and_process_files([input_files[-1]], x_playlist=x_playlist_test, edge_index=test_edge_index, edge_label=test_edge_label)
 
     # Do some validation
     pos = 0

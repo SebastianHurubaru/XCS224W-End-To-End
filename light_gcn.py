@@ -8,32 +8,26 @@
 # In[ ]:
 
 
+import gzip
 import os
 import os.path as osp
+from operator import itemgetter
 from pathlib import Path
-
-from tqdm import tqdm, trange
 
 import torch
 import torch.nn as nn
 from torch.optim import SGD
 from torch.utils.data import DataLoader
-
-from operator import itemgetter
-
-import gzip
-
-from torch_geometric.transforms import ToUndirected, RandomLinkSplit
-from torch_geometric.utils import negative_sampling
-from torch_geometric.utils import structured_negative_sampling
 from torch_geometric.nn.models.lightgcn import LightGCN
+from torch_geometric.utils import (negative_sampling,
+                                   structured_negative_sampling)
+from tqdm import tqdm, trange
 
-from e2e.datasets import SpotifyMPDataset, EdgeDataset
-
+from e2e.datasets import SpotifyMPDataset
 
 # In[ ]:
 
-
+# Load the Spotify MDP from the file system
 spotify_dataset = SpotifyMPDataset(
     root='./spotify_mpd', 
     url=f"file://{osp.join(Path('.').resolve(), 'spotify_preprocessed_dataset')}"
@@ -42,31 +36,17 @@ spotify_dataset = SpotifyMPDataset(
 
 # In[ ]:
 
-
-train_data = spotify_dataset[0]
-train_data
-
-
-# In[ ]:
-
-
-test_data = spotify_dataset[1]
-test_data
-
-
-# In[ ]:
-
-
+# Setup the device
 device = torch.device("cpu")
 if torch.cuda.is_available(): 
     device = torch.device("cuda")
-elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
-    device = torch.device("mps")
 
 print(f'Runing on device: {device}')
 
 # In[ ]:
 
+train_data = spotify_dataset[0]
+test_data = spotify_dataset[1]
 
 args = {
     'device': device,
@@ -82,17 +62,18 @@ args = {
     'k': 600
 }
 
-args
-
+print(args)
 
 # In[ ]:
 
-
+# Use the [LightGCN](https://arxiv.org/pdf/2002.02126.pdf) recommender model
 model = LightGCN(
     num_nodes=test_data.num_nodes,
     embedding_dim=train_data.num_node_features,
     num_layers=3
 )
+
+# In[ ]:
 
 # Initialize the embeddings with the initial features from the full graph
 model.embedding.weight.data = test_data["x"]
@@ -106,7 +87,17 @@ optimizer = torch.optim.Adam(model.parameters(), lr=args["lr"])
 
 # In[ ]:
 
+r"""Generate the output file in the format required by the Spotify MPD Challenge.
 
+Args:
+    recommended_track_ids : Recommended tracks for the test nodes.
+    edge_index: Adjacency matrix.
+    filename: Name of the file to be generated.
+
+Returns: 
+    
+
+"""
 def generate_output_file(recommended_track_ids, edge_index, filename):
 
     lines = ['\n']
@@ -117,18 +108,22 @@ def generate_output_file(recommended_track_ids, edge_index, filename):
     
     for i, playlist_node_id in enumerate(test_data["test_nodes_index"].numpy()):
 
+        # Transform the recommended tracks for the current playlist to a list
         playlist_track_recommendations = list((recommended_track_ids[i]).numpy())
 
+        # Exclude the pre-given tracks from the test playlist as per the challenge
         excluded_track_nodes_mask = edge_index[0] == playlist_node_id
 
         playlist_excluded_tracks = edge_index[1, torch.nonzero(excluded_track_nodes_mask).squeeze()]
 
         valid_recommended_tracks = list(filter(lambda t: t not in playlist_excluded_tracks, playlist_track_recommendations))
 
+        # From the rest of the tracks recommended extract the top 500
         top_500_recommended_track_ids = valid_recommended_tracks[:500]
 
         pid = str(spotify_dataset.playlist_id_map.get(str(playlist_node_id)))
 
+        # Get the tracks URI given the tracks id
         top_500_recommended_track_uris = itemgetter(*[str(track_id) for track_id in top_500_recommended_track_ids])(spotify_dataset.track_uri_map)
 
         line = ', '.join([pid] + [track_uri for track_uri in top_500_recommended_track_uris])
@@ -146,11 +141,21 @@ def generate_output_file(recommended_track_ids, edge_index, filename):
 
 # In[ ]:
 
+r"""Recommend tracks for the test playlists.
+
+Args:
+    model : Recommender model.
+
+Returns: 
+    
+
+"""
 
 def test(model):
 
     test_edge_index = test_data.edge_index.to(device=args["device"])
 
+    # Get the track nodes 
     track_nodes_mask = test_data["node_type"] == test_data["track_node_type"]
     track_node_index = torch.nonzero(track_nodes_mask).squeeze().to(args["device"])
 
@@ -158,13 +163,8 @@ def test(model):
 
     model.eval()
 
+    # Split the test playlists in chunks
     playlist_index = test_data["test_nodes_index"]
-
-    # if args["test_batch_size"] == -1:
-    #     data_loader = zip([playlist_index], [None], [None])
-    # else:
-    #     edge_index_data = EdgeDataset(playlist_index)
-    #     data_loader = DataLoader(edge_index_data, batch_size=args["test_batch_size"], shuffle=False, pin_memory=True, num_workers=args["num_workers"])
 
     data_loader = playlist_index.chunk(args["test_chunk_size"])
 
@@ -178,6 +178,7 @@ def test(model):
 
     test_edge_index = test_edge_index.cpu()
 
+    # Clear GPU memory
     torch.cuda.empty_cache()
 
     return recommended_track_ids
@@ -185,6 +186,15 @@ def test(model):
 
 # In[ ]:
 
+r"""Train recommender model.
+
+Args:
+    model : Recommender model.
+
+Returns: 
+    
+
+"""
 def train(model):
     
     test_edge_index = test_data.edge_index[:, train_data.num_edges:]
@@ -204,12 +214,6 @@ def train(model):
         # Shuffle the tensors
         shuffle_indices = torch.randperm(playlist_index.size()[0])
         playlist_index, pos_track_index, neg_track_index = playlist_index[shuffle_indices], pos_track_index[shuffle_indices], neg_track_index[shuffle_indices]
-
-        # if args["batch_size"] == -1:
-        #     data_loader = zip(playlist_index.chunk(2), pos_track_index.chunk(2), neg_track_index.chunk(2))
-        # else:
-        #     edge_index_data = EdgeDataset(playlist_index, pos_track_index, neg_track_index)
-        #     data_loader = DataLoader(edge_index_data, batch_size=args["batch_size"], shuffle=True, pin_memory=True, num_workers=args["num_workers"])
 
         data_loader = zip(playlist_index.chunk(args["train_chunk_size"]), pos_track_index.chunk(args["train_chunk_size"]), neg_track_index.chunk(args["train_chunk_size"]))
         
@@ -244,13 +248,10 @@ def train(model):
         
         generate_output_file(recommended_track_ids, test_edge_index, filename=osp.join('output_files', f'epoch_{epoch}_submission.csv.gz'))
 
-train(model)
-
 
 # In[ ]:
 
-
-
-
+# Initiate the training
+train(model)
 
 

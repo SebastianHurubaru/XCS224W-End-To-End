@@ -1,0 +1,6 @@
+python-louvain==0.16
+torch-scatter
+torch-sparse
+torch-geometric
+ogb
+deepsnap
